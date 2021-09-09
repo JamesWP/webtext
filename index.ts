@@ -73,6 +73,9 @@ void main() {
 }
 `;
 
+const text_shader_unit = 0;
+const uniform_binding_point = 0;
+
 function textProgram(gl: WebGL2RenderingContext): WebGLProgram {
   console.debug("Vertex shader source");
   console.debug(text_vertex_shader_source);
@@ -154,21 +157,21 @@ function main() {
   let text_shader_sampler_location = gl.getUniformLocation(text_shader, "font_tex");
   let text_shader_uniforms_location = gl.getUniformBlockIndex(text_shader, "TextUniforms");
 
-  let text_shader_unit = 0;
-  let uniform_binding_point = 0;
-
-  gl.uniformBlockBinding(text_shader, text_shader_uniforms_location, uniform_binding_point);
-  
   let font_atlas = terminus.loadTexture(gl);
-
+ 
+  // uniforms
   let uniform_buffer = gl.createBuffer();
   let uniform_buffer_data = new Float32Array(12);
   let uniform_buffer_values = {
-    viewport: uniform_buffer_data.subarray(0, 3),
-    origin: uniform_buffer_data.subarray(4, 7),
-    bg_col: uniform_buffer_data.subarray(8, 11),
+    viewport: uniform_buffer_data.subarray(0, 4),
+    origin: uniform_buffer_data.subarray(4, 8),
+    bg_col: uniform_buffer_data.subarray(8, 12),
   }
 
+  // 
+  gl.uniformBlockBinding(text_shader, text_shader_uniforms_location, uniform_binding_point);
+
+  // Drawing
   window.requestAnimationFrame(() => {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
