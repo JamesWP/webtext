@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "module": "AMD",
+        "lib": ["ES2019", "DOM"],
+        "sourceMap": true,
+        "noImplicitAny": true,
+        "outFile": "index.js"
+    },
+    "files": [
+        "index.ts",
+    ]
+}

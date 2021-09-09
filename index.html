@@ -2,6 +2,20 @@
 <html alng="en">
     <head>
         <meta charset="utf-8"/>
+        <script type="text/javascript">
+            window.define = function(name, required, moduleFn) {
+                var require = function() { throw new Error("AMD require not supported!")}
+                var exports = window.define.modules[name] = {}
+                var resolved = [require, exports]
+                for (var i = 2; i < required.length; i++) {
+                    var m = window.define.modules[required[i]]
+                    if (!m) throw new Error("AMD module `" + required[i] + "` not found!")
+                    resolved.push(m)
+                }
+                moduleFn.apply(null, resolved)
+            }
+            window.define.modules = {}
+        </script>
         <script type="text/javascript" src="index.js"></script>
     </head>
     <body>
