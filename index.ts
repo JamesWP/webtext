@@ -75,6 +75,14 @@ void main() {
 
 const text_shader_unit = 0;
 const uniform_binding_point = 0;
+const bytes_per_glyph = 20;
+const max_glyphs = 20;
+
+const vertex_attrib_offset = {
+  pos: 0,
+  idx: 12,
+  col: 16,
+};
 
 function textProgram(gl: WebGL2RenderingContext): WebGLProgram {
   console.debug("Vertex shader source");
@@ -123,13 +131,16 @@ function resetStyle(el: HTMLElement) {
   el.style.height = "100%";
 }
 
-function resizeCanvas(canvas: HTMLCanvasElement) {
+function resizeCanvas(gl: WebGL2RenderingContext) {
+  let canvas = gl.canvas as HTMLCanvasElement;
   let multiplier = window.devicePixelRatio;
   const width = canvas.clientWidth * multiplier | 0;
   const height = canvas.clientHeight * multiplier | 0;
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;
+
+    gl.viewport(0,0, width, height);
     return true;
   }
   return false;
@@ -144,21 +155,23 @@ function main() {
   let canvas = window.document.createElement("canvas");
   el.appendChild(canvas);
 
-  resizeCanvas(canvas);
-  window.addEventListener("resize", () => resizeCanvas(canvas));
-
   el.style.display = "flex";
   el.style.alignItems = "stretch";
   canvas.style.flexGrow = "1";
 
   let gl = canvas.getContext("webgl2");
 
+  resizeCanvas(gl);
+  window.addEventListener("resize", () => resizeCanvas(gl));
+
+  gl.clearColor(0.3,0.3,0.3,1.0);
+
   let text_shader = textProgram(gl);
   let text_shader_sampler_location = gl.getUniformLocation(text_shader, "font_tex");
   let text_shader_uniforms_location = gl.getUniformBlockIndex(text_shader, "TextUniforms");
 
   let font_atlas = terminus.loadTexture(gl);
- 
+
   // uniforms
   let uniform_buffer = gl.createBuffer();
   let uniform_buffer_data = new Float32Array(12);
@@ -171,8 +184,53 @@ function main() {
   // 
   gl.uniformBlockBinding(text_shader, text_shader_uniforms_location, uniform_binding_point);
 
+  // Vertex attibs
+
+  // vec3 glyph_pos;
+  // int  glyph_idx;
+  // vec4 glyph_col;
+
+  let vertex_attrib_buffer = gl.createBuffer();
+  let vertex_attrib_data = new ArrayBuffer(bytes_per_glyph * max_glyphs);
+
+  let vertex_attrib_object = gl.createVertexArray();
+  gl.bindVertexArray(vertex_attrib_object);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertex_attrib_buffer);
+
+  gl.enableVertexAttribArray(0);
+  gl.enableVertexAttribArray(1);
+  gl.enableVertexAttribArray(2);
+  
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, bytes_per_glyph, vertex_attrib_offset.pos); // vec3
+  gl.vertexAttribIPointer(1, 1, gl.INT, bytes_per_glyph, vertex_attrib_offset.idx); // int
+  gl.vertexAttribPointer(2, 4, gl.UNSIGNED_BYTE, true, bytes_per_glyph, vertex_attrib_offset.col); // vec4
+
+  gl.vertexAttribDivisor(0, 1);
+  gl.vertexAttribDivisor(1, 1);
+  gl.vertexAttribDivisor(2, 1);
+
+  // update vertex attribs
+  let put_char = (idx: number, pos:{x:number, y:number}, scale: number, glyph: string, color: number) => {
+
+    let d = new DataView(vertex_attrib_data, idx * bytes_per_glyph, bytes_per_glyph);
+    d.setFloat32(vertex_attrib_offset.pos + 0, pos.x, true); // X
+    d.setFloat32(vertex_attrib_offset.pos + 4, pos.y, true); // Y
+    d.setFloat32(vertex_attrib_offset.pos + 8, scale, true); // scale
+    d.setInt32(vertex_attrib_offset.idx, glyph.charCodeAt(0), true); // glyph index
+    d.setInt32(vertex_attrib_offset.col, color); // fg color
+  }
+
+  put_char(0, {x:0, y:0}, 2, 'J', 0x000000ff);
+  put_char(1, {x:12, y:0}, 2, 'a', 0xff0000ff);
+  put_char(2, {x:24, y:0}, 2, 'm', 0x000000ff);
+  put_char(3, {x:36, y:0}, 2, 'e', 0x000000ff);
+  put_char(4, {x:48, y:0}, 2, 's', 0x000000ff);
+
+  console.info("Finished setup");
+
   // Drawing
-  window.requestAnimationFrame(() => {
+  let draw = () => {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     // bind font atlas
@@ -182,15 +240,24 @@ function main() {
     gl.uniform1i(text_shader_sampler_location, text_shader_unit);
 
     // set uniforms
-    uniform_buffer_values.viewport.set([-100, -100, 100, 100]);
-    uniform_buffer_values.origin.set([0, 0, 0, 0]);
-    uniform_buffer_values.bg_col.set([0, 0, 0, 0]);
+    uniform_buffer_values.viewport.set([0, 0, canvas.width, canvas.height]);
+    uniform_buffer_values.origin.set([canvas.width/2, canvas.height/2, 1/* unused */, 1 /* unused */]);
+    uniform_buffer_values.bg_col.set([1, 1, 1, 1]);
     gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
     gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);
 
     // bind uniforms 
     gl.bindBufferBase(gl.UNIFORM_BUFFER, uniform_binding_point, uniform_buffer);
 
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, 1);
-  });
+    // set vertex attribs
+    gl.bindVertexArray(vertex_attrib_object);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertex_attrib_buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertex_attrib_data, gl.DYNAMIC_DRAW);
+
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, vertex_attrib_data.byteLength / bytes_per_glyph);
+
+    window.requestAnimationFrame(()=>draw());
+  };
+
+  draw();
 }
