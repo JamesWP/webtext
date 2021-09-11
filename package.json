@@ -1,0 +1,20 @@
+{
+  "name": "webtext",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "build": "tsc",
+    "build:watch": "tsc --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github.com:jameswp/webtext"
+  },
+  "author": "James Peach <james_peach01@hotmail.co.uk>",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^4.4.2"
+  }
+}
