@@ -14,11 +14,9 @@ jobs:
         run: |
           npm install
           npm run build
-          ls -l
-          git add index.js -f
 
       - name: Deploy 🚀
-        uses: JamesIves/github-pages-deploy-action@3.7.1
+        uses: JamesIves/github-pages-deploy-action@4
         with:
           branch: gh-pages # The branch the action should deploy to.
-          folder: . # The folder the action should deploy.
+          folder: ./ # The folder the action should deploy.
