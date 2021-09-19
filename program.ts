@@ -158,9 +158,9 @@ function calculateViewport(size: { width: number, height: number }, zoom: number
   let height = (size.width / size.height) * width;
 
   return [
-    -centre.x - width / 2, 
-    -centre.y - height / 2, 
-    -centre.x + width / 2, 
+    -centre.x - width / 2,
+    -centre.y - height / 2,
+    -centre.x + width / 2,
     -centre.y + height / 2
   ];
 }
@@ -169,7 +169,7 @@ export function resetUniforms(gl: WebGL2RenderingContext) {
   // set uniforms
   uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
   uniform_buffer_values.origin.set([0, 0, 1/* unused */, 1 /* unused */]);
-  uniform_buffer_values.bg_col.set([1, 1, 1, 1]);
+  uniform_buffer_values.bg_col.set([0.3, 0.3, 0.3, 1]);
 
   gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
   gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);
@@ -188,17 +188,25 @@ export function zoomUpdate(gl: WebGL2RenderingContext, z: number) {
   gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);
 }
 
-export function panUpdate(gl: WebGL2RenderingContext, pan: { x: number, y: number }) {
+export function panUpdate(gl: WebGL2RenderingContext, pan: { x: number, y: number }, persist: boolean) {
 
   let [minx, miny, maxx, maxy] = calculateViewport(gl.canvas, zoom, centre);
 
   let scale = (maxx - minx) / gl.canvas.width;
 
-  centre.x += scale * pan.x;
-  centre.y += scale * pan.y;
+  pan.x = pan.x * scale;
+  pan.y = pan.y * scale;
+
+  if (persist) {
+    centre.x += pan.x;
+    centre.y += pan.y;
+    pan = { x: 0, y: 0 };
+  }
+
+  let calc_centre = { x: centre.x + pan.x, y: centre.y + pan.y };
 
   // set uniforms
-  uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
+  uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, calc_centre));
 
   gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
   gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);

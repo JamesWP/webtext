@@ -4,7 +4,8 @@
 // vec4 glyph_col;
 
 const bytes_per_glyph = 20;
-export const max_glyphs = 200;
+//export const max_glyphs = 100000;
+export const max_glyphs = 10000;
 
 const vertex_attrib_offset = {
   pos: 0,
@@ -47,6 +48,10 @@ export function bind(gl: WebGL2RenderingContext) {
 // update vertex attribs
 export function put_char(idx: number, pos: { x: number, y: number }, scale: number, glyph: string, color: number) {
 
+  if(idx >= max_glyphs) {
+    console.warn("not enough space for glyph at idx", idx, "max glyphs", max_glyphs);
+    return;
+  }
   let d = new DataView(vertex_attrib_data, idx * bytes_per_glyph, bytes_per_glyph);
   d.setFloat32(vertex_attrib_offset.pos + 0, pos.x, true); // X
   d.setFloat32(vertex_attrib_offset.pos + 4, pos.y, true); // Y

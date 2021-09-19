@@ -1,7 +1,9 @@
 import * as text from './text';
 import * as program from './program';
 
-window.addEventListener("DOMContentLoaded", () => main());
+const URL = "https://raw.githubusercontent.com/torvalds/linux/master/init/main.c";
+
+window.addEventListener("DOMContentLoaded", () => main().then(() => { console.log("Finished") }));
 
 function resetStyle(el: HTMLElement) {
   el.style.margin = "0";
@@ -46,7 +48,21 @@ function setup(): WebGL2RenderingContext {
   return gl;
 }
 
-function main() {
+async function getLines(url: string) {
+  let response = await window.fetch(url, {
+    headers: {
+      'Accept': 'application/text'
+    }
+  });
+  if (!response.ok) {
+    return ["Error loading content"];
+  }
+  let text = await response.text();
+
+  return text.split("\n").map(line => line.replace(/\t/g, "        "));
+}
+
+async function main() {
   let gl = setup();
 
   gl.clearColor(0.3, 0.3, 0.3, 1.0);
@@ -54,9 +70,23 @@ function main() {
   program.setup(gl);
   text.setup(gl);
 
-  text.put_string(0, { x: 0, y: 0 }, 5, "James", 0xff1133ff);
-  text.put_string(10, { x: 0, y: 5 * 12 }, 2, "SUCH TEXT", 0x0000ffff);
-  text.put_string(20, { x: 0, y: 5 * 12 * 2 }, 2, "Still works", 0x0000ffff);
+  let content = await getLines(URL);
+
+  let line_number = 0;
+  let total_chars = 0;
+
+  for (let line of content) {
+    if (total_chars > text.max_glyphs) break;
+    text.put_string(total_chars, { x: 0, y: 12 * line_number }, 1, line, 0xffffffff);
+    total_chars += line.length;
+    line_number += 1;
+  }
+
+  //text.put_string(0, { x: 0, y: 0 }, 5, "James", 0xff1133ff);
+  //text.put_string(10, { x: 0, y: 5 * 12 }, 2, "SUCH TEXT", 0x0000ffff);
+  //text.put_string(20, { x: 0, y: 5 * 12 * 2 }, 2, "Still works", 0x0000ffff);
+
+
 
   gl.canvas.addEventListener("wheel", ev => {
     ev.stopPropagation();
@@ -70,23 +100,36 @@ function main() {
   });
 
   let mouse_start: { x: number, y: number } | null = null;
-  gl.canvas.addEventListener("mousemove", ev => {
+
+  gl.canvas.addEventListener("mousedown", ev => {
     ev.stopPropagation();
     ev.preventDefault();
 
-    if (ev.buttons & 0x1 && !mouse_start) {
-      mouse_start = { x: ev.clientX, y: ev.clientY };
-      return;
-    }
-    if (!(ev.buttons & 0x1)) {
-      mouse_start = null;
+    mouse_start = { x: ev.clientX, y: ev.clientY };
+  });
+
+  gl.canvas.addEventListener("mouseup", ev => {
+    if(mouse_start === null) {
       return;
     }
 
-    console.debug("mm", (ev.buttons & 0x1) ? 1 : 0, ev.movementX, ev.movementY);
-    if (ev.buttons & 0x1) {
-      program.panUpdate(gl, { x: ev.movementX, y: ev.movementY });
+    ev.stopPropagation();
+    ev.preventDefault();
+
+    program.panUpdate(gl, { x: ev.clientX - mouse_start.x, y: ev.clientY - mouse_start.y }, true);
+
+    mouse_start = null;
+  });
+
+  gl.canvas.addEventListener("mousemove", ev => {
+    if(mouse_start === null) {
+      return;
     }
+
+    ev.stopPropagation();
+    ev.preventDefault();
+
+    program.panUpdate(gl, { x: ev.clientX - mouse_start.x, y: ev.clientY - mouse_start.y }, false);
   });
 
   console.info("Finished setup");
