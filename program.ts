@@ -90,6 +90,9 @@ let uniform_buffer_values: {
   bg_col: Float32Array,
 };
 
+let zoom = 0;
+let centre = { x: 0, y: 0 };
+
 export function setup(gl: WebGL2RenderingContext): WebGLProgram {
   console.debug("Vertex shader source");
   console.debug(text_vertex_shader_source);
@@ -144,14 +147,58 @@ export function setup(gl: WebGL2RenderingContext): WebGLProgram {
     bg_col: uniform_buffer_data.subarray(8, 12),
   }
 
-  setUniforms(gl);
+  resetUniforms(gl);
 }
 
-export function setUniforms(gl:WebGL2RenderingContext) {
+function calculateViewport(size: { width: number, height: number }, zoom: number, centre: { x: number, y: number }) {
+  // -10 : size.width * 10
+  // 10  : 10
+
+  let width = ((zoom + 10) / 20) * (size.width * 10 + 10) + 10;
+  let height = (size.width / size.height) * width;
+
+  return [
+    -centre.x - width / 2, 
+    -centre.y - height / 2, 
+    -centre.x + width / 2, 
+    -centre.y + height / 2
+  ];
+}
+
+export function resetUniforms(gl: WebGL2RenderingContext) {
   // set uniforms
-  uniform_buffer_values.viewport.set([0, 0, gl.canvas.width, gl.canvas.height]);
-  uniform_buffer_values.origin.set([gl.canvas.width / 2, gl.canvas.height / 2, 1/* unused */, 1 /* unused */]);
+  uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
+  uniform_buffer_values.origin.set([0, 0, 1/* unused */, 1 /* unused */]);
   uniform_buffer_values.bg_col.set([1, 1, 1, 1]);
+
+  gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
+  gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);
+}
+
+export function zoomUpdate(gl: WebGL2RenderingContext, z: number) {
+  zoom += z;
+
+  zoom = Math.min(10, zoom);
+  zoom = Math.max(-10, zoom);
+
+  // set uniforms
+  uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
+
+  gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
+  gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);
+}
+
+export function panUpdate(gl: WebGL2RenderingContext, pan: { x: number, y: number }) {
+
+  let [minx, miny, maxx, maxy] = calculateViewport(gl.canvas, zoom, centre);
+
+  let scale = (maxx - minx) / gl.canvas.width;
+
+  centre.x += scale * pan.x;
+  centre.y += scale * pan.y;
+
+  // set uniforms
+  uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
 
   gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
   gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);

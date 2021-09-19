@@ -19,7 +19,7 @@ function resizeCanvas(gl: WebGL2RenderingContext) {
     canvas.width = width;
     canvas.height = height;
 
-    gl.viewport(0,0, width, height);
+    gl.viewport(0, 0, width, height);
     return true;
   }
   return false;
@@ -49,14 +49,45 @@ function setup(): WebGL2RenderingContext {
 function main() {
   let gl = setup();
 
-  gl.clearColor(0.3,0.3,0.3,1.0);
+  gl.clearColor(0.3, 0.3, 0.3, 1.0);
 
   program.setup(gl);
   text.setup(gl);
 
-  text.put_string(0, {x:0, y:0}, 5, "James", 0xff1133ff);
-  text.put_string(10, {x:0, y:5*12}, 2, "SUCH TEXT", 0x0000ffff);
-  text.put_string(20, {x:0, y:5*12*2}, 2, "Still works", 0x0000ffff);
+  text.put_string(0, { x: 0, y: 0 }, 5, "James", 0xff1133ff);
+  text.put_string(10, { x: 0, y: 5 * 12 }, 2, "SUCH TEXT", 0x0000ffff);
+  text.put_string(20, { x: 0, y: 5 * 12 * 2 }, 2, "Still works", 0x0000ffff);
+
+  gl.canvas.addEventListener("wheel", ev => {
+    ev.stopPropagation();
+    ev.preventDefault();
+
+    if (ev.deltaY > 0) {
+      program.zoomUpdate(gl, +0.1);
+    } else if (ev.deltaY < 0) {
+      program.zoomUpdate(gl, -0.1);
+    }
+  });
+
+  let mouse_start: { x: number, y: number } | null = null;
+  gl.canvas.addEventListener("mousemove", ev => {
+    ev.stopPropagation();
+    ev.preventDefault();
+
+    if (ev.buttons & 0x1 && !mouse_start) {
+      mouse_start = { x: ev.clientX, y: ev.clientY };
+      return;
+    }
+    if (!(ev.buttons & 0x1)) {
+      mouse_start = null;
+      return;
+    }
+
+    console.debug("mm", (ev.buttons & 0x1) ? 1 : 0, ev.movementX, ev.movementY);
+    if (ev.buttons & 0x1) {
+      program.panUpdate(gl, { x: ev.movementX, y: ev.movementY });
+    }
+  });
 
   console.info("Finished setup");
 
@@ -71,7 +102,7 @@ function main() {
 
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, text.max_glyphs);
 
-    window.requestAnimationFrame(()=>draw());
+    window.requestAnimationFrame(() => draw());
   };
 
   draw();
