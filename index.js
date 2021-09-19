@@ -319,7 +319,7 @@ define("program", ["require", "exports", "terminus"], function (require, exports
         // -10 : size.width * 10
         // 10  : 10
         var width = ((zoom + 10) / 20) * (size.width * 10 + 10) + 10;
-        var height = (size.width / size.height) * width;
+        var height = (size.height / size.width) * width;
         return [
             -centre.x - width / 2,
             -centre.y - height / 2,
@@ -328,6 +328,9 @@ define("program", ["require", "exports", "terminus"], function (require, exports
         ];
     }
     function resetUniforms(gl) {
+        if (!uniform_buffer_values) {
+            return;
+        }
         // set uniforms
         uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
         uniform_buffer_values.origin.set([0, 0, 1 /* unused */, 1 /* unused */]);
@@ -337,7 +340,8 @@ define("program", ["require", "exports", "terminus"], function (require, exports
     }
     exports.resetUniforms = resetUniforms;
     function zoomUpdate(gl, z) {
-        zoom += z;
+        var zoom_speed = ((zoom + 10) / 20) * 3.0 + 0.1;
+        zoom += z * zoom_speed;
         zoom = Math.min(10, zoom);
         zoom = Math.max(-10, zoom);
         // set uniforms
@@ -388,12 +392,13 @@ define("index", ["require", "exports", "text", "program"], function (require, ex
     function resizeCanvas(gl) {
         var canvas = gl.canvas;
         var multiplier = window.devicePixelRatio;
-        var width = canvas.clientWidth * multiplier | 0;
-        var height = canvas.clientHeight * multiplier | 0;
+        var width = canvas.parentElement.clientWidth * multiplier | 0;
+        var height = canvas.parentElement.clientHeight * multiplier | 0;
         if (canvas.width !== width || canvas.height !== height) {
             canvas.width = width;
             canvas.height = height;
             gl.viewport(0, 0, width, height);
+            program.resetUniforms(gl);
             return true;
         }
         return false;
@@ -406,6 +411,7 @@ define("index", ["require", "exports", "text", "program"], function (require, ex
         el.appendChild(canvas);
         el.style.display = "flex";
         el.style.alignItems = "stretch";
+        el.style.overflow = "hidden";
         canvas.style.flexGrow = "1";
         var gl = canvas.getContext("webgl2");
         resizeCanvas(gl);
@@ -465,10 +471,10 @@ define("index", ["require", "exports", "text", "program"], function (require, ex
                             ev.stopPropagation();
                             ev.preventDefault();
                             if (ev.deltaY > 0) {
-                                program.zoomUpdate(gl, +0.1);
+                                program.zoomUpdate(gl, +0.5);
                             }
                             else if (ev.deltaY < 0) {
-                                program.zoomUpdate(gl, -0.1);
+                                program.zoomUpdate(gl, -0.5);
                             }
                         });
                         mouse_start = null;
@@ -476,6 +482,15 @@ define("index", ["require", "exports", "text", "program"], function (require, ex
                             ev.stopPropagation();
                             ev.preventDefault();
                             mouse_start = { x: ev.clientX, y: ev.clientY };
+                        });
+                        gl.canvas.addEventListener("mouseleave", function (ev) {
+                            if (mouse_start === null) {
+                                return;
+                            }
+                            ev.stopPropagation();
+                            ev.preventDefault();
+                            program.panUpdate(gl, { x: ev.clientX - mouse_start.x, y: ev.clientY - mouse_start.y }, true);
+                            mouse_start = null;
                         });
                         gl.canvas.addEventListener("mouseup", function (ev) {
                             if (mouse_start === null) {

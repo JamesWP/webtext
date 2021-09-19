@@ -15,13 +15,16 @@ function resetStyle(el: HTMLElement) {
 function resizeCanvas(gl: WebGL2RenderingContext) {
   let canvas = gl.canvas as HTMLCanvasElement;
   let multiplier = window.devicePixelRatio;
-  const width = canvas.clientWidth * multiplier | 0;
-  const height = canvas.clientHeight * multiplier | 0;
+  const width = canvas.parentElement.clientWidth * multiplier | 0;
+  const height = canvas.parentElement.clientHeight * multiplier | 0;
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;
 
     gl.viewport(0, 0, width, height);
+
+    program.resetUniforms(gl);
+
     return true;
   }
   return false;
@@ -38,6 +41,7 @@ function setup(): WebGL2RenderingContext {
 
   el.style.display = "flex";
   el.style.alignItems = "stretch";
+  el.style.overflow = "hidden";
   canvas.style.flexGrow = "1";
 
   let gl = canvas.getContext("webgl2");
@@ -86,30 +90,28 @@ async function main() {
   //text.put_string(10, { x: 0, y: 5 * 12 }, 2, "SUCH TEXT", 0x0000ffff);
   //text.put_string(20, { x: 0, y: 5 * 12 * 2 }, 2, "Still works", 0x0000ffff);
 
-
-
-  gl.canvas.addEventListener("wheel", ev => {
+  gl.canvas.addEventListener("wheel", (ev: WheelEvent) => {
     ev.stopPropagation();
     ev.preventDefault();
 
     if (ev.deltaY > 0) {
-      program.zoomUpdate(gl, +0.1);
+      program.zoomUpdate(gl, +0.5);
     } else if (ev.deltaY < 0) {
-      program.zoomUpdate(gl, -0.1);
+      program.zoomUpdate(gl, -0.5);
     }
   });
 
   let mouse_start: { x: number, y: number } | null = null;
 
-  gl.canvas.addEventListener("mousedown", ev => {
+  gl.canvas.addEventListener("mousedown", (ev: MouseEvent) => {
     ev.stopPropagation();
     ev.preventDefault();
 
     mouse_start = { x: ev.clientX, y: ev.clientY };
   });
 
-  gl.canvas.addEventListener("mouseup", ev => {
-    if(mouse_start === null) {
+  gl.canvas.addEventListener("mouseleave", (ev: MouseEvent) => {
+    if (mouse_start === null) {
       return;
     }
 
@@ -121,8 +123,21 @@ async function main() {
     mouse_start = null;
   });
 
-  gl.canvas.addEventListener("mousemove", ev => {
-    if(mouse_start === null) {
+  gl.canvas.addEventListener("mouseup", (ev: MouseEvent) => {
+    if (mouse_start === null) {
+      return;
+    }
+
+    ev.stopPropagation();
+    ev.preventDefault();
+
+    program.panUpdate(gl, { x: ev.clientX - mouse_start.x, y: ev.clientY - mouse_start.y }, true);
+
+    mouse_start = null;
+  });
+
+  gl.canvas.addEventListener("mousemove", (ev: MouseEvent) => {
+    if (mouse_start === null) {
       return;
     }
 
