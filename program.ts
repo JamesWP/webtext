@@ -155,7 +155,7 @@ function calculateViewport(size: { width: number, height: number }, zoom: number
   // 10  : 10
 
   let width = ((zoom + 10) / 20) * (size.width * 10 + 10) + 10;
-  let height = (size.width / size.height) * width;
+  let height = (size.height / size.width) * width;
 
   return [
     -centre.x - width / 2,
@@ -166,6 +166,10 @@ function calculateViewport(size: { width: number, height: number }, zoom: number
 }
 
 export function resetUniforms(gl: WebGL2RenderingContext) {
+  if(!uniform_buffer_values) {
+    return;
+  }
+
   // set uniforms
   uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
   uniform_buffer_values.origin.set([0, 0, 1/* unused */, 1 /* unused */]);
@@ -176,7 +180,8 @@ export function resetUniforms(gl: WebGL2RenderingContext) {
 }
 
 export function zoomUpdate(gl: WebGL2RenderingContext, z: number) {
-  zoom += z;
+  let zoom_speed = ((zoom + 10) / 20) * 3.0 + 0.1;
+  zoom += z * zoom_speed;
 
   zoom = Math.min(10, zoom);
   zoom = Math.max(-10, zoom);
