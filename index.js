@@ -1,3 +1,39 @@
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (_) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
 // vec3 glyph_pos;
 // int  glyph_idx;
 // vec4 glyph_col;
@@ -6,7 +42,8 @@ define("text", ["require", "exports"], function (require, exports) {
     exports.__esModule = true;
     exports.put_string = exports.put_char = exports.bind = exports.setup = exports.vertex_attrib_object = exports.vertex_attrib_data = exports.vertex_attrib_buffer = exports.max_glyphs = void 0;
     var bytes_per_glyph = 20;
-    exports.max_glyphs = 200;
+    //export const max_glyphs = 100000;
+    exports.max_glyphs = 10000;
     var vertex_attrib_offset = {
         pos: 0,
         idx: 12,
@@ -37,6 +74,10 @@ define("text", ["require", "exports"], function (require, exports) {
     exports.bind = bind;
     // update vertex attribs
     function put_char(idx, pos, scale, glyph, color) {
+        if (idx >= exports.max_glyphs) {
+            console.warn("not enough space for glyph at idx", idx, "max glyphs", exports.max_glyphs);
+            return;
+        }
         var d = new DataView(exports.vertex_attrib_data, idx * bytes_per_glyph, bytes_per_glyph);
         d.setFloat32(vertex_attrib_offset.pos + 0, pos.x, true); // X
         d.setFloat32(vertex_attrib_offset.pos + 4, pos.y, true); // Y
@@ -217,7 +258,7 @@ define("terminus", ["require", "exports"], function (require, exports) {
 define("program", ["require", "exports", "terminus"], function (require, exports, terminus) {
     "use strict";
     exports.__esModule = true;
-    exports.bind = exports.setUniforms = exports.setup = void 0;
+    exports.bind = exports.panUpdate = exports.zoomUpdate = exports.resetUniforms = exports.setup = void 0;
     var text_shader_unit = 0;
     var uniform_binding_point = 0;
     var text_vertex_shader_source = "#version 300 es\nprecision mediump float;\nconst float glyph_size_x = 6.0;\nconst float glyph_size_y = 12.0;\nconst float atlas_stride_x = 8.0;\nconst float atlas_stride_y = 16.0;\nconst float atlas_width = 256.0;\nconst float atlas_height = 128.0;\nconst float inv_atlas_width = 1.0 / atlas_width;\nconst float inv_atlas_height = 1.0 / atlas_height;\nlayout(std140) uniform TextUniforms {\n  vec4  viewport;\n  vec4  origin;\n  vec4  bg_col;\n};\nuniform sampler2D font_tex;\nfloat remap(float x, float a1, float a2, float b1, float b2) {\n  x = (x - a1) / (a2 - a1);\n  x = x * (b2 - b1) + b1;\n  return x;\n}\n\nlayout(location = 0) in vec3 glyph_pos;\nlayout(location = 1) in int  glyph_idx;\nlayout(location = 2) in vec4 glyph_col;\nout vec2  tc_glyph;\nout vec4  fg_col;\nvoid main() {\n  float corner_x = float((gl_VertexID >> 0) & 1);\n  float corner_y = float((gl_VertexID >> 1) & 1);\n  float col     = float((glyph_idx >> 0) & 0x1F);\n  float row     = float((glyph_idx >> 5) & 0x07);\n  float glyph_tcx = (col * atlas_stride_x) + (corner_x * glyph_size_x);\n  float glyph_tcy = (row * atlas_stride_y) + (corner_y * glyph_size_y);\n  glyph_tcx = remap(glyph_tcx, 0.0, atlas_width,  0.0, 1.0);\n  glyph_tcy = remap(glyph_tcy, 0.0, atlas_height, 0.0, 1.0);\n  tc_glyph = vec2(glyph_tcx, glyph_tcy);\n  fg_col = glyph_col;\n  //----------\n  float glyph_scale_x = glyph_pos.z;\n  float glyph_scale_y = glyph_pos.z;\n  float glyph_x = glyph_pos.x;\n  float glyph_y = glyph_pos.y;\n  float quad_x = glyph_x + (corner_x * glyph_size_x) * glyph_scale_x + origin.x;\n  float quad_y = glyph_y + (corner_y * glyph_size_y) * glyph_scale_y + origin.y;\n  gl_Position = vec4(remap(quad_x, viewport.x, viewport.z, -1.0,  1.0),\n                     remap(quad_y, viewport.y, viewport.w,  1.0, -1.0),\n                     0.0,\n                     1.0);\n}\n";
@@ -228,6 +269,8 @@ define("program", ["require", "exports", "terminus"], function (require, exports
     var uniform_buffer;
     var uniform_buffer_data;
     var uniform_buffer_values;
+    var zoom = 0;
+    var centre = { x: 0, y: 0 };
     function setup(gl) {
         console.debug("Vertex shader source");
         console.debug(text_vertex_shader_source);
@@ -269,18 +312,57 @@ define("program", ["require", "exports", "terminus"], function (require, exports
             origin: uniform_buffer_data.subarray(4, 8),
             bg_col: uniform_buffer_data.subarray(8, 12)
         };
-        setUniforms(gl);
+        resetUniforms(gl);
     }
     exports.setup = setup;
-    function setUniforms(gl) {
+    function calculateViewport(size, zoom, centre) {
+        // -10 : size.width * 10
+        // 10  : 10
+        var width = ((zoom + 10) / 20) * (size.width * 10 + 10) + 10;
+        var height = (size.width / size.height) * width;
+        return [
+            -centre.x - width / 2,
+            -centre.y - height / 2,
+            -centre.x + width / 2,
+            -centre.y + height / 2
+        ];
+    }
+    function resetUniforms(gl) {
         // set uniforms
-        uniform_buffer_values.viewport.set([0, 0, gl.canvas.width, gl.canvas.height]);
-        uniform_buffer_values.origin.set([gl.canvas.width / 2, gl.canvas.height / 2, 1 /* unused */, 1 /* unused */]);
-        uniform_buffer_values.bg_col.set([1, 1, 1, 1]);
+        uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
+        uniform_buffer_values.origin.set([0, 0, 1 /* unused */, 1 /* unused */]);
+        uniform_buffer_values.bg_col.set([0.3, 0.3, 0.3, 1]);
         gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
         gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);
     }
-    exports.setUniforms = setUniforms;
+    exports.resetUniforms = resetUniforms;
+    function zoomUpdate(gl, z) {
+        zoom += z;
+        zoom = Math.min(10, zoom);
+        zoom = Math.max(-10, zoom);
+        // set uniforms
+        uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, centre));
+        gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
+        gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);
+    }
+    exports.zoomUpdate = zoomUpdate;
+    function panUpdate(gl, pan, persist) {
+        var _a = calculateViewport(gl.canvas, zoom, centre), minx = _a[0], miny = _a[1], maxx = _a[2], maxy = _a[3];
+        var scale = (maxx - minx) / gl.canvas.width;
+        pan.x = pan.x * scale;
+        pan.y = pan.y * scale;
+        if (persist) {
+            centre.x += pan.x;
+            centre.y += pan.y;
+            pan = { x: 0, y: 0 };
+        }
+        var calc_centre = { x: centre.x + pan.x, y: centre.y + pan.y };
+        // set uniforms
+        uniform_buffer_values.viewport.set(calculateViewport(gl.canvas, zoom, calc_centre));
+        gl.bindBuffer(gl.UNIFORM_BUFFER, uniform_buffer);
+        gl.bufferData(gl.UNIFORM_BUFFER, uniform_buffer_data, gl.DYNAMIC_DRAW);
+    }
+    exports.panUpdate = panUpdate;
     function bind(gl) {
         // bind font atlas
         gl.useProgram(text_shader);
@@ -295,7 +377,8 @@ define("program", ["require", "exports", "terminus"], function (require, exports
 define("index", ["require", "exports", "text", "program"], function (require, exports, text, program) {
     "use strict";
     exports.__esModule = true;
-    window.addEventListener("DOMContentLoaded", function () { return main(); });
+    var URL = "https://raw.githubusercontent.com/torvalds/linux/master/init/main.c";
+    window.addEventListener("DOMContentLoaded", function () { return main().then(function () { console.log("Finished"); }); });
     function resetStyle(el) {
         el.style.margin = "0";
         el.style.padding = "0";
@@ -329,25 +412,102 @@ define("index", ["require", "exports", "text", "program"], function (require, ex
         window.addEventListener("resize", function () { return resizeCanvas(gl); });
         return gl;
     }
+    function getLines(url) {
+        return __awaiter(this, void 0, void 0, function () {
+            var response, text;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, window.fetch(url, {
+                            headers: {
+                                'Accept': 'application/text'
+                            }
+                        })];
+                    case 1:
+                        response = _a.sent();
+                        if (!response.ok) {
+                            return [2 /*return*/, ["Error loading content"]];
+                        }
+                        return [4 /*yield*/, response.text()];
+                    case 2:
+                        text = _a.sent();
+                        return [2 /*return*/, text.split("\n").map(function (line) { return line.replace(/\t/g, "        "); })];
+                }
+            });
+        });
+    }
     function main() {
-        var gl = setup();
-        gl.clearColor(0.3, 0.3, 0.3, 1.0);
-        program.setup(gl);
-        text.setup(gl);
-        text.put_string(0, { x: 0, y: 0 }, 5, "James", 0xff1133ff);
-        text.put_string(10, { x: 0, y: 5 * 12 }, 2, "SUCH TEXT", 0x0000ffff);
-        text.put_string(20, { x: 0, y: 5 * 12 * 2 }, 2, "Still works", 0x0000ffff);
-        console.info("Finished setup");
-        // Drawing
-        var draw = function () {
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            program.bind(gl);
-            // set vertex attribs
-            text.bind(gl);
-            gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, text.max_glyphs);
-            window.requestAnimationFrame(function () { return draw(); });
-        };
-        draw();
+        return __awaiter(this, void 0, void 0, function () {
+            var gl, content, line_number, total_chars, _i, content_1, line, mouse_start, draw;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        gl = setup();
+                        gl.clearColor(0.3, 0.3, 0.3, 1.0);
+                        program.setup(gl);
+                        text.setup(gl);
+                        return [4 /*yield*/, getLines(URL)];
+                    case 1:
+                        content = _a.sent();
+                        line_number = 0;
+                        total_chars = 0;
+                        for (_i = 0, content_1 = content; _i < content_1.length; _i++) {
+                            line = content_1[_i];
+                            if (total_chars > text.max_glyphs)
+                                break;
+                            text.put_string(total_chars, { x: 0, y: 12 * line_number }, 1, line, 0xffffffff);
+                            total_chars += line.length;
+                            line_number += 1;
+                        }
+                        //text.put_string(0, { x: 0, y: 0 }, 5, "James", 0xff1133ff);
+                        //text.put_string(10, { x: 0, y: 5 * 12 }, 2, "SUCH TEXT", 0x0000ffff);
+                        //text.put_string(20, { x: 0, y: 5 * 12 * 2 }, 2, "Still works", 0x0000ffff);
+                        gl.canvas.addEventListener("wheel", function (ev) {
+                            ev.stopPropagation();
+                            ev.preventDefault();
+                            if (ev.deltaY > 0) {
+                                program.zoomUpdate(gl, +0.1);
+                            }
+                            else if (ev.deltaY < 0) {
+                                program.zoomUpdate(gl, -0.1);
+                            }
+                        });
+                        mouse_start = null;
+                        gl.canvas.addEventListener("mousedown", function (ev) {
+                            ev.stopPropagation();
+                            ev.preventDefault();
+                            mouse_start = { x: ev.clientX, y: ev.clientY };
+                        });
+                        gl.canvas.addEventListener("mouseup", function (ev) {
+                            if (mouse_start === null) {
+                                return;
+                            }
+                            ev.stopPropagation();
+                            ev.preventDefault();
+                            program.panUpdate(gl, { x: ev.clientX - mouse_start.x, y: ev.clientY - mouse_start.y }, true);
+                            mouse_start = null;
+                        });
+                        gl.canvas.addEventListener("mousemove", function (ev) {
+                            if (mouse_start === null) {
+                                return;
+                            }
+                            ev.stopPropagation();
+                            ev.preventDefault();
+                            program.panUpdate(gl, { x: ev.clientX - mouse_start.x, y: ev.clientY - mouse_start.y }, false);
+                        });
+                        console.info("Finished setup");
+                        draw = function () {
+                            gl.clear(gl.COLOR_BUFFER_BIT);
+                            program.bind(gl);
+                            // set vertex attribs
+                            text.bind(gl);
+                            gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, text.max_glyphs);
+                            window.requestAnimationFrame(function () { return draw(); });
+                        };
+                        draw();
+                        return [2 /*return*/];
+                }
+            });
+        });
     }
 });
 //# sourceMappingURL=index.js.map
